@@ -1,0 +1,46 @@
+- name: Setup host
+  hosts: all
+
+  handlers:
+    - name: Restart sshd
+      ansible.builtin.service:
+        name: sshd
+        state: restarted
+      become: yes
+
+  tasks:
+    - name: Set up authorized keys
+      ansible.posix.authorized_key:
+        user: "{{ homelab_ansible_user }}"
+        key: "{{ item.type | default('ssh-rsa') }} {{ item.key }} {{ item.comment }}"
+      loop: "{{ authorized_keys }}"
+      loop_control:
+        label: "{{ item.comment }}"
+      when: authorized_keys is defined
+
+    - name: Disable root login over SSH
+      ansible.builtin.lineinfile:
+        dest: /etc/ssh/sshd_config
+        regexp: "^PermitRootLogin"
+        line: "PermitRootLogin no"
+        state: present
+      become: yes
+      notify:
+        - Restart sshd
+
+    - name: Disable password login
+      ansible.builtin.lineinfile:
+        dest: /etc/ssh/sshd_config
+        regexp: "^PasswordAuthentication"
+        line: "PasswordAuthentication no"
+        state: present
+      become: yes
+      notify:
+        - Restart sshd
+
+    - name: Install Podman packages
+      ansible.builtin.apt:
+        name: podman
+        update_cache: yes
+      become: yes
+
